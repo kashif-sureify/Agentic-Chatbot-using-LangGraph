@@ -1,5 +1,6 @@
 from langchain_core.messages import AIMessageChunk, HumanMessage, AIMessage
-from agentic_chatbot_backend import chatbot_workflow, generate_title, generate_greeting
+from agentic_chatbot_backend import chatbot_workflow
+from utils.helper import generate_title, generate_greeting, get_all_threads
 from datetime import datetime
 from pathlib import Path
 import streamlit as st
@@ -96,7 +97,7 @@ if "thread_id" not in st.session_state:
     st.session_state["thread_id"] = generate_thread_id()
 
 if "chat_threads" not in st.session_state:
-    st.session_state["chat_threads"] = []
+    st.session_state["chat_threads"] = get_all_threads()
 
 if "thread_titles" not in st.session_state:
     st.session_state["thread_titles"] = {}
@@ -198,7 +199,11 @@ if user_input:
     CONFIG = {
         "configurable": {
             "thread_id": st.session_state["thread_id"]
-        }
+        },
+        "metadata": {
+            "thread_id": st.session_state["thread_id"]
+        },
+        "run_name": "chat_trace"
     }
 
     with st.chat_message("assistant", avatar=str(LOGO_PATH)):
