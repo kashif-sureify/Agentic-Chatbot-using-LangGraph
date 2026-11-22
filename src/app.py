@@ -11,16 +11,30 @@ import uuid
 
 LOGO_PATH = Path(__file__).parent / "assets" / "logo.png"
 
-st.set_page_config(page_title="Magnus", page_icon=str(LOGO_PATH))
+st.set_page_config(page_title="Magnus AI", page_icon=str(LOGO_PATH))
 st.logo(str(LOGO_PATH), icon_image=str(LOGO_PATH), size="large")
 
 
 @st.cache_data
-def get_logo_base64(path: str) -> str:
+def get_logo_base64(path: str, modified_at: float) -> str:
     return base64.b64encode(Path(path).read_bytes()).decode("utf-8")
 
 
-LOGO_B64 = get_logo_base64(str(LOGO_PATH))
+LOGO_B64 = get_logo_base64(str(LOGO_PATH), LOGO_PATH.stat().st_mtime)
+
+# Streamlit caps the built-in sidebar logo and chat avatars at a small size, so scale them up
+st.markdown(
+    """
+    <style>
+        [data-testid="stLogo"] { height: 2rem; }
+        [data-testid="stChatMessageAvatarCustom"] {
+            width: 2rem;
+            height: 2rem;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 # Generate a unique thread ID for each chat session
@@ -81,8 +95,8 @@ def get_time_based_greeting():
 st.markdown(
     f"""
     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 0.75rem;">
-        <img src="data:image/png;base64,{LOGO_B64}" width="42" height="42" alt="Magnus logo" />
-        <h1 style="margin: 0; padding: 0; font-size: 2.25rem; font-weight: 700;">Magnus</h1>
+        <img src="data:image/png;base64,{LOGO_B64}" width="48" height="48" alt="Magnus logo" />
+        <h1 style="margin: 0; padding: 0; font-size: 2.5rem; font-weight: 700;">Magnus AI</h1>
     </div>
     """,
     unsafe_allow_html=True,
@@ -174,7 +188,7 @@ if not st.session_state.message_history:
         st.markdown(
             f"""
             <div style="text-align: center; padding: 12vh 1rem 4vh 1rem;">
-                <img src="data:image/png;base64,{LOGO_B64}" width="72" height="72" alt="Magnus logo" style="margin-bottom: 0.75rem;" />
+                <img src="data:image/png;base64,{LOGO_B64}" width="96" height="96" alt="Magnus logo" style="margin-bottom: 1rem;" />
                 <h2 style="font-weight: 500; margin-bottom: 0.4rem;">{greeting}</h2>
                 <p style="opacity: 0.65; font-size: 1rem;">How can I help you today?</p>
             </div>
