@@ -41,9 +41,32 @@ def generate_greeting(current_time: str) -> str:
 
 
 def get_all_threads():
-    all_threads = set()
+    """Return thread IDs ordered by when each conversation was created (oldest first)."""
+    created_at = {}
 
     for checkpoint in checkpointer.list(None):
-        all_threads.add(checkpoint.config["configurable"]["thread_id"])
+        thread_id = checkpoint.config["configurable"]["thread_id"]
+        # The earliest checkpoint of a thread marks when that conversation started
+        timestamp = checkpoint.checkpoint.get("ts", "")
+        if thread_id not in created_at or timestamp < created_at[thread_id]:
+            created_at[thread_id] = timestamp
 
-    return list(all_threads)
+    return sorted(created_at, key=lambda thread_id: created_at[thread_id])
+
+
+def get_friendly_error_message(error: Exception) -> str:
+    msg = str(error).lower()
+
+    if any(k in msg for k in ("503", "unavailable", "high demand", "overloaded", "capacity")):
+        return "Our AI models are currently busy due to high demand. Please try again in a moment."
+
+    if any(k in msg for k in ("429", "rate limit", "rate_limit", "quota", "resource_exhausted")):
+        return "Too many requests right now. Please wait a few seconds and try again."
+
+    if any(k in msg for k in ("401", "403", "api key", "api_key", "permission_denied", "unauthorized")):
+        return "There is a configuration issue with the AI service. Please try again later."
+
+    if any(k in msg for k in ("timeout", "timed out", "connection", "network", "unreachable")):
+        return "Unable to reach the AI service right now. Please check your connection and try again."
+
+    return "Something went wrong while generating a response. Please try again."
