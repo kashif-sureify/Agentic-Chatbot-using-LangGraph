@@ -1,10 +1,12 @@
 from langchain_core.messages import AIMessageChunk, HumanMessage, AIMessage, ToolMessage
 from agentic_chatbot_backend import chatbot_workflow
 from utils.helper import (
+    delete_thread,
     generate_title,
     generate_greeting,
     get_all_threads,
     get_friendly_error_message,
+    record_thread_created,
 )
 from datetime import datetime
 from pathlib import Path
@@ -52,6 +54,7 @@ def generate_thread_id():
 
 # Add a new thread ID for the conversation list if it doesn't exist
 def add_thread(thread_id):
+    record_thread_created(thread_id)
     if thread_id not in st.session_state["chat_threads"]:
         st.session_state["chat_threads"].append(thread_id)
 
@@ -93,6 +96,35 @@ def get_thread_title(thread_id):
 
     st.session_state["thread_titles"][thread_id] = "New Chat"
     return "New Chat"
+
+
+@st.dialog("Delete conversation?")
+def confirm_delete(thread_id):
+    st.write(f"**{get_thread_title(thread_id)}** will be removed from your conversations.")
+
+    cancel_column, delete_column = st.columns(2)
+
+    # Closing happens by rerunning without calling this dialog function again
+    if cancel_column.button("Cancel", key="cancel_delete", width="stretch"):
+        st.rerun()
+
+    if delete_column.button(
+        "Delete", key="confirm_delete", type="primary", width="stretch"
+    ):
+        delete_thread(thread_id)
+
+        st.session_state["chat_threads"] = [
+            tid for tid in st.session_state["chat_threads"] if tid != thread_id
+        ]
+        st.session_state["thread_titles"].pop(thread_id, None)
+        st.session_state["thread_greetings"].pop(thread_id, None)
+
+        # Deleting the open conversation leaves the user on a fresh empty chat
+        if st.session_state["thread_id"] == thread_id:
+            st.session_state["thread_id"] = generate_thread_id()
+            st.session_state["message_history"] = []
+
+        st.rerun()
 
 
 def get_time_based_greeting():
@@ -147,8 +179,12 @@ for thread_id in st.session_state["chat_threads"][::-1]:
     title = get_thread_title(thread_id)
     is_active = thread_id == st.session_state["thread_id"]
     
+    select_column, delete_column = st.sidebar.columns(
+        [0.8, 0.2], gap="small", vertical_alignment="center"
+    )
+
     # Creates a sidebar button for every existing chat thread
-    if st.sidebar.button(
+    if select_column.button(
         title,
         key=thread_id,
         type="primary" if is_active else "secondary",
@@ -181,8 +217,18 @@ for thread_id in st.session_state["chat_threads"][::-1]:
         st.session_state["message_history"] = temp_messages
         
         st.rerun()
-        
-        
+
+    # Opens the confirmation modal, which does the actual deleting
+    if delete_column.button(
+        "",
+        key=f"delete-{thread_id}",
+        icon=":material/delete:",
+        help="Delete this conversation",
+        width="stretch",
+    ):
+        confirm_delete(thread_id)
+
+
 # =================================== Main chat interface ============================
 
 greeting_placeholder = st.empty()

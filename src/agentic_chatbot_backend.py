@@ -105,6 +105,26 @@ conn = sqlite3.connect(database=str(DB_PATH), check_same_thread=False)
 
 checkpointer = SqliteSaver(conn)
 
+# Tracked separately from the LangGraph-managed `checkpoints` table, which has no
+# per-thread row to hang a creation timestamp on
+conn.execute(
+    """
+    CREATE TABLE IF NOT EXISTS threads (
+        thread_id TEXT PRIMARY KEY,
+        created_at TEXT NOT NULL,
+        is_deleted INTEGER NOT NULL DEFAULT 0
+    )
+    """
+)
+
+# Databases created before soft deletes still have the two-column table
+if "is_deleted" not in {row[1] for row in conn.execute("PRAGMA table_info(threads)")}:
+    conn.execute(
+        "ALTER TABLE threads ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0"
+    )
+
+conn.commit()
+
 graph = StateGraph(ChatbotState)
 
 graph.add_node('tools', tool_node)
