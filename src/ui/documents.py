@@ -4,7 +4,11 @@ import tempfile
 
 import streamlit as st
 
-from utils.helper import estimated_minutes, ingest_rag_documents
+from utils.helper import (
+    estimated_minutes,
+    get_friendly_error_message,
+    ingest_rag_documents,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +47,7 @@ def ingest_uploaded_pdfs(uploaded_files, thread_id: str):
 
         except Exception as error:
             logger.exception("Failed to index uploaded PDF %s", uploaded_pdf.name)
-            st.error(f"Could not read {uploaded_pdf.name}: {error}")
+            st.warning(get_friendly_error_message(error))
 
         finally:
             progress_bar.empty()

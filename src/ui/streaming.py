@@ -31,11 +31,17 @@ def stream_assistant_response(user_input, thread_id):
         status_container = st.container()
         response_placeholder = st.empty()
 
+        # The model is called with `invoke`, so nothing streams until it answers.
+        # Without this the turn shows an empty avatar for several seconds.
+        response_placeholder.markdown("_Thinking …_")
+
         status_holder = {"box": None}
         used_tools = []
 
         def show_tool_status(label):
             if status_holder["box"] is None:
+                # The tool box itself now reports progress, so drop the placeholder
+                response_placeholder.empty()
                 with status_container:
                     status_holder["box"] = st.status(label, expanded=True)
             else:
