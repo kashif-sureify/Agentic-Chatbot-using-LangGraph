@@ -1,4 +1,5 @@
 from langchain_tavily import TavilySearch
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 import math
 import requests
@@ -211,7 +212,7 @@ def get_current_location() -> str:
         return f"Unexpected location response: {str(e)}"
 
 @tool
-def rag_tool(query: str) -> str:
+def rag_tool(query: str, config: RunnableConfig) -> str:
     """
     Retrieve the most relevant documents from the vector store based on the query. Use this tool when the user asks about the content of the PDF.
     Input should be a valid query.
@@ -224,10 +225,11 @@ def rag_tool(query: str) -> str:
 
     """
     try:
-        if not has_rag_documents():
-            return "No document has been uploaded yet. Ask the user to upload a PDF first."
+        thread_id = (config.get("configurable") or {}).get("thread_id")
+        if not thread_id or not has_rag_documents(thread_id):
+            return "No document has been uploaded in this conversation yet. Ask the user to upload a PDF first."
 
-        retriever = get_rag_retriever()
+        retriever = get_rag_retriever(thread_id)
         documents = retriever.invoke(query)
 
         if not documents:

@@ -9,8 +9,8 @@ from utils.helper import estimated_minutes, ingest_rag_documents
 logger = logging.getLogger(__name__)
 
 
-def ingest_uploaded_pdfs(uploaded_files):
-    """Index each uploaded PDF and return the names that were indexed successfully."""
+def ingest_uploaded_pdfs(uploaded_files, thread_id: str):
+    """Index each uploaded PDF for this conversation and return the names that succeeded."""
     indexed_names = []
 
     for uploaded_pdf in uploaded_files:
@@ -34,6 +34,7 @@ def ingest_uploaded_pdfs(uploaded_files):
 
             ingest_rag_documents(
                 temporary_file_path,
+                thread_id,
                 source_name=uploaded_pdf.name,
                 on_progress=report_progress,
             )

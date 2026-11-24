@@ -76,7 +76,7 @@ def get_friendly_error_message(error: Exception) -> str:
 
 
 # RAG Document Ingestion
-# Anchored to the project root so the index is found no matter where the app is launched from
+# One folder per conversation, so a search in this thread cannot see another thread's PDFs
 FAISS_INDEX_PATH = Path(__file__).resolve().parent.parent.parent / "faiss_index"
 K_RETRIEVER = 4
 
@@ -86,13 +86,19 @@ EMBEDDING_BATCH_SIZE = int(os.environ.get("EMBEDDING_BATCH_SIZE", "100"))
 EMBEDDING_THROTTLE_SECONDS = float(os.environ.get("EMBEDDING_THROTTLE_SECONDS", "60"))
 
 
-def has_rag_documents() -> bool:
-    return (FAISS_INDEX_PATH / "index.faiss").exists()
+def _index_dir(thread_id: str) -> Path:
+    if not thread_id or thread_id in {".", ".."} or "/" in thread_id or "\\" in thread_id:
+        raise ValueError("Invalid thread id for the document index.")
+    return FAISS_INDEX_PATH / thread_id
 
 
-def _load_vectorstore():
+def has_rag_documents(thread_id: str) -> bool:
+    return (_index_dir(thread_id) / "index.faiss").exists()
+
+
+def _load_vectorstore(thread_id: str):
     vectorstore = FAISS.load_local(
-        folder_path=str(FAISS_INDEX_PATH),
+        folder_path=str(_index_dir(thread_id)),
         embeddings=embeddings,
         allow_dangerous_deserialization=True
         )
@@ -100,7 +106,7 @@ def _load_vectorstore():
     # Searching an index built at a different size fails deep inside FAISS, so say so here
     if vectorstore.index.d != EMBEDDING_DIMENSIONS:
         raise RuntimeError(
-            f"The index at {FAISS_INDEX_PATH} stores {vectorstore.index.d}-dimension vectors "
+            f"The index at {_index_dir(thread_id)} stores {vectorstore.index.d}-dimension vectors "
             f"but EMBEDDING_DIMENSIONS is {EMBEDDING_DIMENSIONS}. Delete the index folder and "
             "upload the documents again."
         )
@@ -129,7 +135,12 @@ def _embed_in_batches(texts: list[str], on_progress=None) -> list[list[float]]:
     return vectors
 
 
-def ingest_rag_documents(file_path: str, source_name: str | None = None, on_progress=None):
+def ingest_rag_documents(
+    file_path: str,
+    thread_id: str,
+    source_name: str | None = None,
+    on_progress=None,
+):
     loader = PyMuPDF4LLMLoader(file_path)
     docs = loader.load()
 
@@ -145,14 +156,15 @@ def ingest_rag_documents(file_path: str, source_name: str | None = None, on_prog
     metadatas = [chunk.metadata for chunk in chunks]
     text_embeddings = list(zip(texts, _embed_in_batches(texts, on_progress)))
 
-    # Added to the existing index so several PDFs stay searchable together
-    if has_rag_documents():
-        vectorstore = _load_vectorstore()
+    # Added to this thread's index so several PDFs in the same chat stay searchable together
+    index_dir = _index_dir(thread_id)
+    if has_rag_documents(thread_id):
+        vectorstore = _load_vectorstore(thread_id)
         vectorstore.add_embeddings(text_embeddings, metadatas=metadatas)
     else:
         vectorstore = FAISS.from_embeddings(text_embeddings, embeddings, metadatas=metadatas)
 
-    vectorstore.save_local(str(FAISS_INDEX_PATH))
+    vectorstore.save_local(str(index_dir))
 
 
 def estimated_minutes(chunk_count: int) -> int:
@@ -160,7 +172,7 @@ def estimated_minutes(chunk_count: int) -> int:
     pauses = max(0, -(-chunk_count // EMBEDDING_BATCH_SIZE) - 1)
     return round(pauses * EMBEDDING_THROTTLE_SECONDS / 60)
 
-def get_rag_retriever():
-    vectorstore = _load_vectorstore()
+def get_rag_retriever(thread_id: str):
+    vectorstore = _load_vectorstore(thread_id)
     retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": K_RETRIEVER})
     return retriever

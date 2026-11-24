@@ -33,7 +33,9 @@ if submission:
     user_input = submission.text or user_input
 
     if submission.files:
-        indexed_names = ingest_uploaded_pdfs(submission.files)
+        indexed_names = ingest_uploaded_pdfs(
+            submission.files, st.session_state["thread_id"]
+        )
 
         if indexed_names:
             file_list = ", ".join(f"`{name}`" for name in indexed_names)
