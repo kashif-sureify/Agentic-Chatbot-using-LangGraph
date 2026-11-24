@@ -1,8 +1,6 @@
-from datetime import datetime, timezone
-
 from langchain_core.messages import HumanMessage
 
-from agentic_chatbot_backend import conn, model
+from agentic_chatbot_backend import model
 
 
 def generate_title(user_message: str, assistant_message: str = "") -> str:
@@ -40,35 +38,6 @@ def generate_greeting(current_time: str) -> str:
         pass
 
     return "How can I help you today?"
-
-
-def record_thread_created(thread_id: str) -> None:
-    """Stamp a thread's creation time the first time it is seen; later calls are no-ops."""
-    conn.execute(
-        "INSERT OR IGNORE INTO threads (thread_id, created_at) VALUES (?, ?)",
-        (thread_id, datetime.now(timezone.utc).isoformat()),
-    )
-    conn.commit()
-
-
-def delete_thread(thread_id: str) -> None:
-    """Soft delete: hide the conversation from the UI but keep its history on disk."""
-    conn.execute(
-        "UPDATE threads SET is_deleted = 1 WHERE thread_id = ?", (thread_id,)
-    )
-    conn.commit()
-
-
-def get_all_threads():
-    """Return non-deleted thread IDs, oldest conversation first."""
-    rows = conn.execute(
-        """
-        SELECT thread_id FROM threads
-        WHERE is_deleted = 0
-        ORDER BY created_at ASC, thread_id ASC
-        """
-    )
-    return [row[0] for row in rows]
 
 
 def get_friendly_error_message(error: Exception) -> str:
