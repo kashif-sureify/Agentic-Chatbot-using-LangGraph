@@ -1,6 +1,23 @@
 from langchain_core.messages import HumanMessage
+from langchain_pymupdf4llm import PyMuPDF4LLMLoader
+from pathlib import Path
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import FAISS
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from dotenv import load_dotenv, find_dotenv
+from models.models import model
+import os
+import time
 
-from agentic_chatbot_backend import model
+load_dotenv(find_dotenv())
+
+EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "gemini-embedding-001")
+EMBEDDING_DIMENSIONS = int(os.environ.get("EMBEDDING_DIMENSIONS", "1024"))
+
+embeddings = GoogleGenerativeAIEmbeddings(
+    model=EMBEDDING_MODEL,
+    output_dimensionality=EMBEDDING_DIMENSIONS,
+)
 
 
 def generate_title(user_message: str, assistant_message: str = "") -> str:
@@ -56,3 +73,94 @@ def get_friendly_error_message(error: Exception) -> str:
         return "Unable to reach the AI service right now. Please check your connection and try again."
 
     return "Something went wrong while generating a response. Please try again."
+
+
+# RAG Document Ingestion
+# Anchored to the project root so the index is found no matter where the app is launched from
+FAISS_INDEX_PATH = Path(__file__).resolve().parent.parent.parent / "faiss_index"
+K_RETRIEVER = 4
+
+# Gemini meters embeddings per minute, so a long PDF is embedded one batch at a time
+# with a pause in between instead of firing every batch at once
+EMBEDDING_BATCH_SIZE = int(os.environ.get("EMBEDDING_BATCH_SIZE", "100"))
+EMBEDDING_THROTTLE_SECONDS = float(os.environ.get("EMBEDDING_THROTTLE_SECONDS", "60"))
+
+
+def has_rag_documents() -> bool:
+    return (FAISS_INDEX_PATH / "index.faiss").exists()
+
+
+def _load_vectorstore():
+    vectorstore = FAISS.load_local(
+        folder_path=str(FAISS_INDEX_PATH),
+        embeddings=embeddings,
+        allow_dangerous_deserialization=True
+        )
+
+    # Searching an index built at a different size fails deep inside FAISS, so say so here
+    if vectorstore.index.d != EMBEDDING_DIMENSIONS:
+        raise RuntimeError(
+            f"The index at {FAISS_INDEX_PATH} stores {vectorstore.index.d}-dimension vectors "
+            f"but EMBEDDING_DIMENSIONS is {EMBEDDING_DIMENSIONS}. Delete the index folder and "
+            "upload the documents again."
+        )
+
+    return vectorstore
+
+
+def _embed_in_batches(texts: list[str], on_progress=None) -> list[list[float]]:
+    """Embed texts one batch per interval so long documents stay inside the rate limit."""
+    vectors: list[list[float]] = []
+
+    if on_progress:
+        on_progress(0, len(texts))
+
+    for start in range(0, len(texts), EMBEDDING_BATCH_SIZE):
+        vectors.extend(
+            embeddings.embed_documents(texts[start : start + EMBEDDING_BATCH_SIZE])
+        )
+
+        if on_progress:
+            on_progress(len(vectors), len(texts))
+
+        if len(vectors) < len(texts):
+            time.sleep(EMBEDDING_THROTTLE_SECONDS)
+
+    return vectors
+
+
+def ingest_rag_documents(file_path: str, source_name: str | None = None, on_progress=None):
+    loader = PyMuPDF4LLMLoader(file_path)
+    docs = loader.load()
+
+    # Uploads land in a temp file, so cite the name the user actually recognises
+    if source_name:
+        for doc in docs:
+            doc.metadata["source"] = source_name
+
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    chunks = splitter.split_documents(docs)
+
+    texts = [chunk.page_content for chunk in chunks]
+    metadatas = [chunk.metadata for chunk in chunks]
+    text_embeddings = list(zip(texts, _embed_in_batches(texts, on_progress)))
+
+    # Added to the existing index so several PDFs stay searchable together
+    if has_rag_documents():
+        vectorstore = _load_vectorstore()
+        vectorstore.add_embeddings(text_embeddings, metadatas=metadatas)
+    else:
+        vectorstore = FAISS.from_embeddings(text_embeddings, embeddings, metadatas=metadatas)
+
+    vectorstore.save_local(str(FAISS_INDEX_PATH))
+
+
+def estimated_minutes(chunk_count: int) -> int:
+    """Rough wall-clock estimate for embedding, dominated by the waits between batches."""
+    pauses = max(0, -(-chunk_count // EMBEDDING_BATCH_SIZE) - 1)
+    return round(pauses * EMBEDDING_THROTTLE_SECONDS / 60)
+
+def get_rag_retriever():
+    vectorstore = _load_vectorstore()
+    retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": K_RETRIEVER})
+    return retriever

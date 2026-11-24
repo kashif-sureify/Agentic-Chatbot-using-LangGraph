@@ -5,6 +5,7 @@ import requests
 import os
 from typing import Any
 from dotenv import load_dotenv, find_dotenv
+from utils.helper import get_rag_retriever, has_rag_documents
 
 load_dotenv(find_dotenv())
 
@@ -209,3 +210,39 @@ def get_current_location() -> str:
     except (ValueError, KeyError, TypeError) as e:
         return f"Unexpected location response: {str(e)}"
 
+@tool
+def rag_tool(query: str) -> str:
+    """
+    Retrieve the most relevant documents from the vector store based on the query. Use this tool when the user asks about the content of the PDF.
+    Input should be a valid query.
+    Example: "What is Rainfall measurement?"
+
+    Args:
+        query: The query to retrieve the most relevant documents from the vector store.
+    Returns:
+        The most relevant documents from the vector store in a list of strings.
+
+    """
+    try:
+        if not has_rag_documents():
+            return "No document has been uploaded yet. Ask the user to upload a PDF first."
+
+        retriever = get_rag_retriever()
+        documents = retriever.invoke(query)
+
+        if not documents:
+            return "No relevant documents found for the query."
+
+        formatted_documents = []
+        for index, document in enumerate(documents, start=1):
+            source = document.metadata.get("source", "Unknown")
+            page = document.metadata.get("page", "Unknown")
+            formatted_documents.append(f"Document {index} \n"
+            f"Source: {source} \n"
+            f"Page: {page} \n"
+            f"Content: {document.page_content}"
+            )
+
+        return "\n\n".join(formatted_documents)
+    except Exception as e:
+        return f"RAG Tool Error: {str(e)}"

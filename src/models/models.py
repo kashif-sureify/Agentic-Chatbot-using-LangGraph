@@ -58,3 +58,14 @@ def _build_models():
 
     return models
 
+
+all_models = _build_models()
+
+# Plain model for helper tasks such as titles and greetings; the graph binds its own
+# tool-aware copy from `all_models`
+model = (
+    all_models[0].with_fallbacks(all_models[1:])
+    if len(all_models) > 1
+    else all_models[0]
+)
+
