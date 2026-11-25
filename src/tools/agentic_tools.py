@@ -4,8 +4,10 @@ from langchain_core.tools import tool
 import math
 import requests
 import os
+import time
 from typing import Any
 from dotenv import load_dotenv, find_dotenv
+from langgraph.types import interrupt
 from utils.helper import get_rag_retriever, has_rag_documents
 
 load_dotenv(find_dotenv())
@@ -56,20 +58,107 @@ def calculator(expression: str) -> str:
     except Exception as e:
         return f"Calculator Error: {str(e)}"
 
+# Resuming an approval re-runs `purchase_stock` from the top, so quotes are reused for a
+# short while: the price the user approved is then the price that gets recorded, and one
+# purchase costs one API call instead of two
+QUOTE_CACHE_SECONDS = 300
+_quote_cache: dict[str, tuple[float, dict]] = {}
+
+
+def _get_quote(symbol: str) -> dict | None:
+    """Return the latest Alpha Vantage quote for a symbol, or None when unavailable."""
+    cached = _quote_cache.get(symbol)
+    if cached and time.time() - cached[0] < QUOTE_CACHE_SECONDS:
+        return cached[1]
+
+    try:
+        response = requests.get(
+            "https://www.alphavantage.co/query",
+            params={
+                "function": "GLOBAL_QUOTE",
+                "symbol": symbol,
+                "apikey": stock_api_key,
+            },
+            timeout=10,
+        )
+        response.raise_for_status()
+
+        # An unknown symbol or an exhausted daily limit returns a note instead of a quote
+        quote = response.json().get("Global Quote") or {}
+        float(quote["05. price"])
+    except (requests.RequestException, KeyError, TypeError, ValueError):
+        return None
+
+    _quote_cache[symbol] = (time.time(), quote)
+    return quote
+
+
+def _money(value) -> str:
+    try:
+        return f"${float(value):,.2f}"
+    except (TypeError, ValueError):
+        return "N/A"
+
+
 @tool
-def get_stock_price() -> dict:
+def get_stock_price(symbol: str) -> str:
     """
-    Useful for getting the price of a stock.
-    Input should be a valid stock symbol.
-    Example: "AAPL", "GOOG", "MSFT", etc.
+    Get the latest traded price for one stock symbol.
+
+    Args:
+        symbol: Ticker symbol, for example "AAPL", "GOOG" or "TSLA".
+
+    Returns:
+        The latest price with the day's move and trading range.
+    """
+    symbol = symbol.strip().upper()
+    quote = _get_quote(symbol)
+
+    if not quote:
+        return (
+            f"No price is available for {symbol} right now. The symbol may be wrong, or "
+            "today's market data limit may have been reached."
+        )
+
+    return (
+        f"{symbol} latest price: {_money(quote.get('05. price'))}\n"
+        f"Change: {quote.get('09. change', 'N/A')} "
+        f"({quote.get('10. change percent', 'N/A')})\n"
+        f"Open: {_money(quote.get('02. open'))}  "
+        f"High: {_money(quote.get('03. high'))}  "
+        f"Low: {_money(quote.get('04. low'))}\n"
+        f"Previous close: {_money(quote.get('08. previous close'))}\n"
+        f"Latest trading day: {quote.get('07. latest trading day', 'N/A')}"
+    )
+
+
+@tool
+def get_market_status() -> str:
+    """
+    Report which major financial markets are open or closed right now. Takes no arguments.
     """
     try:
-        url = f"https://www.alphavantage.co/query?function=MARKET_STATUS&apikey={stock_api_key}"
-        response = requests.get(url)
-        data = response.json()
-        return data
-    except Exception as e:
-        return f"Stock Price Error: {str(e)}"
+        response = requests.get(
+            "https://www.alphavantage.co/query",
+            params={"function": "MARKET_STATUS", "apikey": stock_api_key},
+            timeout=10,
+        )
+        response.raise_for_status()
+        markets = response.json().get("markets") or []
+    except (requests.RequestException, ValueError) as e:
+        return f"Market status is unavailable right now: {e}"
+
+    if not markets:
+        return "Market status is unavailable right now."
+
+    lines = [
+        f"{market.get('region', 'Unknown')} "
+        f"({market.get('primary_exchanges', 'unknown exchanges')}): "
+        f"{market.get('current_status', 'unknown')}"
+        for market in markets
+    ]
+
+    return "Market status:\n" + "\n".join(lines)
 
 @tool
 def get_current_weather(location: str) -> str:
@@ -180,7 +269,7 @@ def get_current_weather(location: str) -> str:
         return f"Weather API Error: {str(e)}"
 
 @tool
-def get_current_location() -> str:
+def get_current_location() -> str | dict:
     """
     Get the user's current approximate geographic location (city, region, country, and coordinates)
     based on their public IP address. Takes no input arguments.
@@ -189,21 +278,33 @@ def get_current_location() -> str:
     try:
         if not current_location_url:
             return "Current location URL is not set. Please set the CURRENT_LOCATION_URL environment variable."
-        response = requests.get(current_location_url, timeout=10)
-        response.raise_for_status()
-        data = response.json()
+        
+        decision = interrupt({
+            "type": "approval",
+            "reason": "Model is about to get the user's current location. Please approve or reject the location.",
+            "question": "Get the user's current location?",
+            "instruction": "Approve this location? (yes/no)"
+        })
+        if isinstance(decision, str) and decision.lower() == "no":
+            return {"status": "rejected", "message": "Location retrieval rejected by the user."}
+        elif isinstance(decision, str) and decision.lower() == "yes":
+            response = requests.get(current_location_url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
 
-        city = data.get("city", "Unknown")
-        region = data.get("region", "Unknown")
-        country = data.get("country", "Unknown")
-        loc = data.get("loc", "Unknown")
-        timezone = data.get("timezone", "Unknown")
+            city = data.get("city", "Unknown")
+            region = data.get("region", "Unknown")
+            country = data.get("country", "Unknown")
+            loc = data.get("loc", "Unknown")
+            timezone = data.get("timezone", "Unknown")
 
-        return (
-            f"Current location: {city}, {region}, {country}\n"
-            f"Coordinates (lat, lon): {loc}\n"
-            f"Timezone: {timezone}"
-        )
+            return (
+                f"Current location: {city}, {region}, {country}\n"
+                f"Coordinates (lat, lon): {loc}\n"
+                f"Timezone: {timezone}"
+            )
+        else:
+            return {"status": "rejected", "message": "Location retrieval rejected by the user."}
     except requests.Timeout:
         return "Location lookup timed out. Please try again."
     except requests.RequestException as e:
@@ -248,3 +349,65 @@ def rag_tool(query: str, config: RunnableConfig) -> str:
         return "\n\n".join(formatted_documents)
     except Exception as e:
         return f"RAG Tool Error: {str(e)}"
+
+@tool
+def purchase_stock(symbol: str, quantity: int) -> dict:
+    """
+    Simulate purchasing a given quantity of a stock symbol.
+
+    The live share price and the order total are looked up here, so report the amounts
+    this tool returns rather than working them out yourself.
+
+    NOTE: This is a mock implementation:
+    - No real brokerage API is called.
+    - It simply returns a confirmation payload.
+    """
+    symbol = symbol.strip().upper()
+
+    quote = _get_quote(symbol)
+    unit_price = float(quote["05. price"]) if quote else None
+    total_cost = round(unit_price * quantity, 2) if unit_price is not None else None
+
+    if total_cost is None:
+        question = f"Purchase {quantity} shares of {symbol}?"
+        details = "Live price unavailable, so the order total cannot be confirmed."
+    else:
+        question = f"Purchase {quantity} shares of {symbol} for ${total_cost:,.2f}?"
+        details = f"{quantity} × ${unit_price:,.2f} per share = ${total_cost:,.2f}"
+
+    # The amount goes in the request so the user approves a known cost, not just a quantity
+    decision = interrupt({
+        "type": "approval",
+        "reason": "Model is about to purchase a stock. Please approve or reject the purchase.",
+        "question": question,
+        "details": details,
+        "instruction": "Approve this purchase? (yes/no)"
+    })
+
+    if isinstance(decision, str) and decision.lower() == "yes":
+        if total_cost is None:
+            message = (
+                f"Purchase order placed for {quantity} shares of {symbol}. "
+                "The live price was unavailable, so the total cost is unknown."
+            )
+        else:
+            message = (
+                f"Purchase order placed for {quantity} shares of {symbol} at "
+                f"${unit_price:,.2f} each, totalling ${total_cost:,.2f}."
+            )
+
+        return {
+            "status": "success",
+            "message": message,
+            "symbol": symbol,
+            "quantity": quantity,
+            "unit_price": unit_price,
+            "total_cost": total_cost,
+        }
+
+    return {
+        "status": "rejected",
+        "message": f"Purchase order rejected for {quantity} shares of {symbol}.",
+        "symbol": symbol,
+        "quantity": quantity,
+    }

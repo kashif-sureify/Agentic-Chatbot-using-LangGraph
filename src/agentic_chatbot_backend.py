@@ -2,12 +2,12 @@ from langgraph.graph import StateGraph, START, END
 from langchain_core.messages import BaseMessage, SystemMessage
 from typing import TypedDict, Annotated
 from langgraph.graph.message import add_messages
-from tools.agentic_tools import calculator, get_stock_price, get_current_weather, get_current_location, search_tool, rag_tool
+from tools.agentic_tools import calculator, get_stock_price, get_market_status, get_current_weather, get_current_location, search_tool, rag_tool, purchase_stock
 from langgraph.prebuilt import ToolNode, tools_condition
 from db.database import checkpointer
 from models.models import all_models
 
-tools = [calculator, get_stock_price, get_current_weather, get_current_location, search_tool, rag_tool]
+tools = [calculator, get_stock_price, get_market_status, get_current_weather, get_current_location, search_tool, rag_tool, purchase_stock]
 
 llm_with_tools = (
     all_models[0]
@@ -39,9 +39,12 @@ SYSTEM_MESSAGE = SystemMessage(
         "or location.\n"
         "- Use `get_current_location` when the user asks where they are. It reads their "
         "approximate location from their IP address, so do not search the web for this.\n"
-        "- Use `get_stock_price` to report whether financial markets are open or closed. It "
-        "takes no arguments and cannot look up an individual ticker, so if the user asks for "
-        "a specific share price, say that it is unavailable.\n\n"
+        "- Use `get_stock_price` when the user asks what a share costs. It takes one ticker "
+        "symbol, so map the company to its symbol first, for example Apple to AAPL.\n"
+        "- Use `get_market_status` when the user asks whether the markets are open.\n"
+        "- Use `purchase_stock` when the user wants to buy shares. It prices the order and "
+        "asks the user to approve it, so report the amounts it returns and never estimate "
+        "the cost yourself.\n\n"
 
         "Answer directly when no tool is required. Never invent document contents, prices, "
         "weather, or locations. If a tool returns nothing useful or fails, tell the user "
