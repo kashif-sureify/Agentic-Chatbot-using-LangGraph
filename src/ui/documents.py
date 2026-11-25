@@ -4,6 +4,7 @@ import tempfile
 
 import streamlit as st
 
+from ui import components
 from utils.helper import (
     estimated_minutes,
     get_friendly_error_message,
@@ -13,20 +14,28 @@ from utils.helper import (
 logger = logging.getLogger(__name__)
 
 
-def ingest_uploaded_pdfs(uploaded_files, thread_id: str):
-    """Index each uploaded PDF for this conversation and return the names that succeeded."""
+def ingest_uploaded_pdfs(uploaded_files, thread_id: str, container):
+    """Index each uploaded PDF for this conversation and return the names that succeeded.
+
+    Progress is drawn as an indexing card inside `container` (the assistant's bubble).
+    A card disappears when its file is done; a file that fails leaves a warning instead.
+    """
     indexed_names = []
 
     for uploaded_pdf in uploaded_files:
         temporary_file_path = None
-        progress_bar = st.progress(0.0, text=f"Reading {uploaded_pdf.name} …")
+        with container:
+            card = st.empty()
+        card.markdown(
+            components.indexing_card(uploaded_pdf.name, 0, 0, 0), unsafe_allow_html=True
+        )
 
-        def report_progress(embedded, total, name=uploaded_pdf.name):
-            minutes = estimated_minutes(total - embedded)
-            remaining = f" — about {minutes} min left" if minutes else ""
-            progress_bar.progress(
-                embedded / total if total else 1.0,
-                text=f"Embedding {name}: {embedded} of {total} chunks{remaining}",
+        def report_progress(embedded, total, name=uploaded_pdf.name, card=card):
+            card.markdown(
+                components.indexing_card(
+                    name, embedded, total, estimated_minutes(total - embedded)
+                ),
+                unsafe_allow_html=True,
             )
 
         try:
@@ -44,13 +53,16 @@ def ingest_uploaded_pdfs(uploaded_files, thread_id: str):
             )
 
             indexed_names.append(uploaded_pdf.name)
+            card.empty()
 
         except Exception as error:
             logger.exception("Failed to index uploaded PDF %s", uploaded_pdf.name)
-            st.warning(get_friendly_error_message(error))
+            card.warning(
+                f"Couldn't index {uploaded_pdf.name}. {get_friendly_error_message(error)}",
+                icon=":material/warning:",
+            )
 
         finally:
-            progress_bar.empty()
             if temporary_file_path and os.path.exists(temporary_file_path):
                 os.remove(temporary_file_path)
 

@@ -1,0 +1,809 @@
+/* Magnus AI · Aurora theme
+ *
+ * Tokens use light-dark(), which resolves against the color-scheme Streamlit sets on
+ * .stApp for the active theme, so custom pieces switch with the theme instantly and
+ * need no rerun. The values match src/.streamlit/config.toml and the Figma variables.
+ *
+ * Selectors are prefixed with .stApp where they style tags inside st.markdown, so they
+ * outrank Streamlit's own markdown rules for p, code and headings.
+ *
+ * Never write a less-than sign followed by a letter anywhere in this file, comments
+ * included: st.html sanitizes with DOMPurify, which then drops the whole stylesheet.
+ */
+
+:root {
+  --mg-bg-app: light-dark(#FAFAFD, #0E0D16);
+  --mg-bg-sidebar: light-dark(#F3F2FA, #121120);
+  --mg-bg-surface: light-dark(#FFFFFF, #17162A);
+  --mg-bg-elevated: light-dark(#FFFFFF, #1E1C34);
+  --mg-bg-muted: light-dark(#F1EFF9, #201E36);
+  --mg-bg-hover: light-dark(#ECE9F8, #24213D);
+  --mg-bg-selected: light-dark(#E6E2FF, #2B2652);
+  --mg-bg-user: light-dark(#EEEBFF, #28234D);
+  --mg-border: light-dark(#E7E5F2, #2A2842);
+  --mg-border-strong: light-dark(#D3CFE6, #3B3860);
+  --mg-focus: light-dark(#5B4BE8, #9A8CFF);
+  --mg-text: light-dark(#1A1830, #EDEBFA);
+  --mg-text-2: light-dark(#625F7A, #A3A0BD);
+  --mg-text-3: light-dark(#8D8AA6, #77748F);
+  --mg-on-brand: light-dark(#FFFFFF, #0E0D16);
+  --mg-primary: light-dark(#5B4BE8, #9A8CFF);
+  --mg-primary-hover: light-dark(#4A3AD6, #B0A5FF);
+  --mg-primary-subtle: light-dark(#EEEBFF, #26224F);
+  --mg-accent: light-dark(#E5566A, #FF8A97);
+  --mg-accent-subtle: light-dark(#FDECEF, #3A2131);
+  --mg-success: light-dark(#137535, #4ADE80);
+  --mg-success-subtle: light-dark(#E7F6EC, #142A1E);
+  --mg-warning: light-dark(#B45309, #FBBF24);
+  --mg-warning-subtle: light-dark(#FFF5E1, #2D2312);
+  --mg-warning-border: light-dark(#F2C66D, #5E4A1C);
+  --mg-danger: light-dark(#C8283E, #F87171);
+  --mg-danger-subtle: light-dark(#FDECEE, #361A20);
+  --mg-grad: linear-gradient(90deg, #8B7CFF, #FF8A97);
+  --mg-grad-text: linear-gradient(90deg, light-dark(#5B4BE8, #A99CFF), light-dark(#D9475C, #FF8A97));
+  --mg-shadow-card: 0 1px 2px light-dark(rgba(20, 15, 61, .05), rgba(0, 0, 0, .3)), 0 4px 12px light-dark(rgba(20, 15, 61, .05), rgba(0, 0, 0, .25));
+  --mg-shadow-composer: 0 2px 4px light-dark(rgba(20, 15, 61, .04), rgba(0, 0, 0, .3)), 0 12px 32px light-dark(rgba(20, 15, 61, .10), rgba(0, 0, 0, .45));
+  --mg-shadow-dialog: 0 8px 16px light-dark(rgba(20, 15, 61, .10), rgba(0, 0, 0, .35)), 0 24px 64px light-dark(rgba(20, 15, 61, .22), rgba(0, 0, 0, .6));
+  --mg-mono: "JetBrains Mono", "Source Code Pro", ui-monospace, monospace;
+  --mg-r-sm: 8px;
+  --mg-r-md: 12px;
+  --mg-r-lg: 16px;
+  --mg-r-xl: 24px;
+}
+
+.stApp { -webkit-font-smoothing: antialiased; }
+
+/* Streamlit pulls every markdown block up by 16px to cancel a paragraph's bottom margin.
+   The custom HTML blocks (all classed mg-...) have no such margin, so without this the
+   next element overlaps them, e.g. the first conversation row over the "Recent" label. */
+.stApp [data-testid="stMarkdownContainer"]:has(> [class^="mg-"]) { margin-bottom: 0; }
+
+/* ------------------------------------------------------------------ App frame */
+
+[data-testid="stHeader"] {
+  background: color-mix(in srgb, var(--mg-bg-app) 82%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+[data-testid="stMainBlockContainer"] {
+  max-width: 820px;
+  padding-top: 3.5rem;
+  padding-bottom: 1.5rem;
+}
+
+[data-testid="stBottomBlockContainer"] {
+  max-width: 820px;
+  padding-top: .5rem;
+  padding-bottom: 1.5rem;
+}
+
+.stApp .mg-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding-bottom: 12px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--mg-border);
+}
+
+.stApp .mg-topbar__title {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+  color: var(--mg-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stApp .mg-docpill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  flex: none;
+  padding: 3px 10px 3px 8px;
+  border-radius: 999px;
+  background: var(--mg-accent-subtle);
+  color: var(--mg-accent);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.stApp .mg-docpill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ------------------------------------------------------------------ Welcome */
+
+.stApp .mg-welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 5vh 0 20px;
+}
+
+.stApp .mg-halo { position: relative; width: 84px; height: 84px; margin-bottom: 22px; }
+
+.stApp .mg-halo::before {
+  content: "";
+  position: absolute;
+  inset: -34px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side,
+    light-dark(rgba(139, 124, 255, .55), rgba(139, 124, 255, .40)),
+    light-dark(rgba(255, 138, 151, .40), rgba(255, 138, 151, .28)) 55%,
+    transparent);
+  filter: blur(22px);
+  animation: mg-breathe 7s ease-in-out infinite;
+}
+
+.stApp .mg-halo img { position: relative; width: 84px; height: 84px; }
+
+.stApp .mg-greeting {
+  margin: 0;
+  font-size: clamp(26px, 4vw, 34px);
+  line-height: 1.24;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  color: var(--mg-text);
+  text-wrap: balance;
+}
+
+.stApp .mg-grad {
+  background: var(--mg-grad-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.stApp p.mg-sub { margin: 8px 0 0; font-size: 16px; color: var(--mg-text-2); }
+
+.stApp .mg-caps { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 18px; }
+
+.stApp .mg-cap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--mg-border);
+  background: var(--mg-bg-surface);
+  color: var(--mg-text-2);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+}
+
+/* Suggestion cards: HTML for the look, an invisible st.button stretched over it for the click */
+.stApp [class*="st-key-mg-sugcard-"] {
+  position: relative;
+  min-height: 96px;
+  padding: 16px;
+  border: 1px solid var(--mg-border);
+  border-radius: var(--mg-r-lg);
+  background: var(--mg-bg-surface);
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+
+.stApp [class*="st-key-mg-sugcard-"]:hover {
+  border-color: var(--mg-focus);
+  box-shadow: var(--mg-shadow-card);
+  transform: translateY(-1px);
+}
+
+.stApp [class*="st-key-mg-sugcard-"]:has(button:focus-visible) {
+  outline: 2px solid var(--mg-focus);
+  outline-offset: 2px;
+}
+
+.stApp [class*="st-key-mg-sugbtn-"] { position: absolute; inset: 0; z-index: 1; margin: 0; }
+
+.stApp [class*="st-key-mg-sugbtn-"] .stButton,
+.stApp [class*="st-key-mg-sugbtn-"] button { width: 100%; height: 100%; }
+
+.stApp [class*="st-key-mg-sugbtn-"] button { opacity: 0; cursor: pointer; }
+
+.stApp .mg-sug { display: flex; gap: 14px; align-items: flex-start; text-align: left; }
+
+.stApp .mg-sug__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+.stApp .mg-sug__text b { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--mg-text); }
+
+.stApp .mg-sug__text span { font-size: 13px; line-height: 20px; color: var(--mg-text-2); }
+
+.stApp .mg-tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--mg-r-md);
+  background: var(--mg-primary-subtle);
+  color: var(--mg-primary);
+}
+
+.stApp .mg-tile--coral { background: var(--mg-accent-subtle); color: var(--mg-accent); }
+
+.stApp .mg-tile--amber { background: var(--mg-warning-subtle); color: var(--mg-warning); }
+
+/* ------------------------------------------------------------------ Messages */
+
+.stApp [data-testid="stChatMessage"] {
+  width: 100%;
+  background: transparent;
+  padding: 0;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.stApp [data-testid="stChatMessageAvatarImage"] {
+  width: 28px;
+  height: 28px;
+  margin-top: 2px;
+  border-radius: 0;
+}
+
+/* User messages sit on the right as a bubble, without an avatar */
+.stApp [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) { justify-content: flex-end; }
+
+.stApp [data-testid="stChatMessageAvatarUser"] { display: none; }
+
+.stApp [data-testid="stChatMessageContent"][aria-label="Chat message from user"] {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: min(560px, 85%);
+  margin-left: auto;
+  margin-right: 0;
+  padding: 10px 16px;
+  border-radius: 20px 20px 6px 20px;
+  background: var(--mg-bg-user);
+  overflow-wrap: anywhere;
+}
+
+.stApp [data-testid="stChatMessageContent"] [data-testid="stMarkdownContainer"] { font-size: 15px; line-height: 1.6; }
+
+.stApp .mg-thinking {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
+  color: var(--mg-text-2);
+  font-size: 14px;
+}
+
+.stApp .mg-dots { display: inline-flex; gap: 4px; }
+
+.stApp .mg-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mg-primary);
+  animation: mg-pulse 1.2s ease-in-out infinite;
+}
+
+.stApp .mg-dots i:nth-child(2) { animation-delay: .15s; }
+
+.stApp .mg-dots i:nth-child(3) { animation-delay: .3s; }
+
+/* ------------------------------------------------------------------ Tool activity */
+
+.stApp [class*="st-key-mg-tools-"] [data-testid="stExpander"] details {
+  border: 1px solid var(--mg-border);
+  border-radius: var(--mg-r-md);
+  background: var(--mg-bg-muted);
+  overflow: hidden;
+}
+
+.stApp [class*="st-key-mg-tools-"] [data-testid="stExpander"] summary { padding: 8px 12px; }
+
+.stApp [class*="st-key-mg-tools-"] [data-testid="stExpander"] summary p,
+.stApp [class*="st-key-mg-tools-"] [data-testid="stExpander"] summary span {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Streamlit animates the panel's height, so spacing goes on the content, not the wrapper */
+.stApp [class*="st-key-mg-tools-"] [data-testid="stExpanderDetails"] {
+  border-top: 1px solid var(--mg-border);
+  background: var(--mg-bg-surface);
+}
+
+.stApp [class*="st-key-mg-tools-running-"] summary [data-testid^="stExpanderIcon"] { color: var(--mg-primary); }
+
+.stApp [class*="st-key-mg-tools-done-"] summary [data-testid^="stExpanderIcon"] { color: var(--mg-success); }
+
+.stApp [class*="st-key-mg-tools-awaiting-"] summary [data-testid^="stExpanderIcon"] { color: var(--mg-warning); }
+
+.stApp [class*="st-key-mg-tools-awaiting-"] [data-testid="stExpander"] details { border-color: var(--mg-warning-border); }
+
+.stApp [class*="st-key-mg-tools-error-"] summary [data-testid^="stExpanderIcon"] { color: var(--mg-danger); }
+
+.stApp [class*="st-key-mg-tools-"] summary code {
+  font: 500 12px/18px var(--mg-mono);
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--mg-bg-surface);
+  color: var(--mg-text);
+}
+
+.stApp .mg-steps { display: flex; flex-direction: column; gap: 6px; padding: 2px 0; }
+
+.stApp .mg-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--mg-text-2);
+}
+
+.stApp .mg-step__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 2px 8px;
+  border-radius: var(--mg-r-sm);
+  border: 1px solid var(--mg-border);
+  background: var(--mg-bg-muted);
+  color: var(--mg-text);
+  font: 500 12px/18px var(--mg-mono);
+}
+
+.stApp .mg-step__chip svg { color: var(--mg-primary); }
+
+.stApp .mg-step__res { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ------------------------------------------------------------------ Approval */
+
+.stApp .st-key-approval_card {
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1px solid var(--mg-warning-border);
+  border-radius: var(--mg-r-lg);
+  background: var(--mg-bg-surface);
+  box-shadow: var(--mg-shadow-card);
+  animation: mg-rise .3s ease-out;
+}
+
+.stApp .mg-approval__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--mg-text-2);
+}
+
+.stApp .mg-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.stApp .mg-badge--warn {
+  background: var(--mg-warning-subtle);
+  color: var(--mg-warning);
+  border: 1px solid var(--mg-warning-border);
+}
+
+.stApp code.mg-toolname {
+  font: 500 12px/18px var(--mg-mono);
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--mg-bg-muted);
+  color: var(--mg-text);
+}
+
+.stApp .mg-approval__question {
+  margin: 0 0 12px;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  color: var(--mg-text);
+  text-wrap: balance;
+}
+
+.stApp .mg-approval__calc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: var(--mg-r-sm);
+  background: var(--mg-warning-subtle);
+  color: var(--mg-warning);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stApp .mg-approval__args { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+
+.stApp .mg-arg {
+  padding: 4px 10px;
+  border-radius: var(--mg-r-sm);
+  border: 1px solid var(--mg-border);
+  background: var(--mg-bg-muted);
+  color: var(--mg-text-2);
+  font: 400 12px/18px var(--mg-mono);
+}
+
+.stApp .mg-arg b { font-weight: 500; color: var(--mg-text); }
+
+.stApp p.mg-approval__reason { margin: 0; font-size: 13px; line-height: 20px; color: var(--mg-text-2); }
+
+.stApp .st-key-approval_actions { padding-top: 14px; border-top: 1px solid var(--mg-border); }
+
+.stApp .mg-decision {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.stApp .mg-decision code { font: 500 12px var(--mg-mono); background: none; color: inherit; padding: 0; }
+
+.stApp .mg-decision--ok { background: var(--mg-success-subtle); color: var(--mg-success); }
+
+.stApp .mg-decision--no { background: var(--mg-bg-muted); color: var(--mg-text-2); }
+
+/* ------------------------------------------------------------------ Files */
+
+.stApp .mg-files { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+
+.stApp .mg-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  padding: 6px 12px 6px 6px;
+  border-radius: var(--mg-r-md);
+  border: 1px solid var(--mg-border);
+  background: var(--mg-bg-surface);
+}
+
+.stApp .mg-file__tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--mg-r-sm);
+  background: var(--mg-accent-subtle);
+  color: var(--mg-accent);
+}
+
+.stApp .mg-file__text { display: flex; flex-direction: column; min-width: 0; text-align: left; }
+
+.stApp .mg-file__name {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--mg-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stApp .mg-file__meta { font-size: 12px; line-height: 16px; color: var(--mg-text-2); }
+
+.stApp .mg-file__ok { flex: none; color: var(--mg-success); }
+
+.stApp .mg-indexing {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--mg-border);
+  border-radius: var(--mg-r-lg);
+  background: var(--mg-bg-surface);
+}
+
+.stApp .mg-indexing__top { display: flex; align-items: center; gap: 12px; min-width: 0; }
+
+.stApp .mg-indexing__top .mg-file__text { flex: 1; }
+
+.stApp .mg-indexing__pct { font-size: 13px; font-weight: 600; color: var(--mg-primary); font-variant-numeric: tabular-nums; }
+
+.stApp .mg-track { height: 6px; border-radius: 999px; background: var(--mg-bg-muted); overflow: hidden; }
+
+.stApp .mg-track i { display: block; height: 100%; border-radius: inherit; background: var(--mg-grad); transition: width .3s ease-out; }
+
+.stApp p.mg-indexing__note { margin: 0; font-size: 12px; line-height: 16px; color: var(--mg-text-3); }
+
+/* ------------------------------------------------------------------ Composer */
+
+.stApp [data-testid="stChatInput"] > div {
+  border: 1px solid var(--mg-border-strong);
+  border-radius: var(--mg-r-xl);
+  background: var(--mg-bg-elevated);
+  box-shadow: var(--mg-shadow-composer);
+  transition: border-color .15s, box-shadow .15s, background .15s;
+}
+
+.stApp [data-testid="stChatInput"] > div:focus-within {
+  border-color: var(--mg-focus);
+  box-shadow: var(--mg-shadow-composer), 0 0 0 4px var(--mg-primary-subtle);
+}
+
+.stApp [data-testid="stChatInputTextArea"] { font-size: 15px; line-height: 24px; color: var(--mg-text); }
+
+.stApp [data-testid="stChatInputTextArea"]::placeholder { color: var(--mg-text-3); }
+
+.stApp [data-testid="stChatInputSubmitButton"] {
+  border-radius: 999px;
+  background: var(--mg-primary);
+  color: var(--mg-on-brand);
+}
+
+.stApp [data-testid="stChatInputSubmitButton"]:hover:not(:disabled) { background: var(--mg-primary-hover); }
+
+.stApp [data-testid="stChatInputSubmitButton"]:disabled { background: var(--mg-bg-muted); color: var(--mg-text-3); }
+
+.stApp [data-testid="stChatInputFileUploadButton"] button { color: var(--mg-text-2); }
+
+/* Locked while an approval is pending */
+.stApp [data-testid="stChatInput"]:has(textarea:disabled) > div {
+  background: var(--mg-bg-muted);
+  border-color: var(--mg-border);
+  box-shadow: none;
+}
+
+/* ------------------------------------------------------------------ Sidebar */
+
+[data-testid="stSidebarHeader"] > div:first-child { display: flex; align-items: center; gap: 10px; }
+
+[data-testid="stSidebarHeader"] > div:first-child::after {
+  content: "Magnus AI";
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  color: var(--mg-text);
+}
+
+[data-testid="stSidebarLogo"] { width: 32px; height: 32px; }
+
+/* Let the footer (theme switch) sit at the bottom of the sidebar */
+[data-testid="stSidebarContent"] { display: flex; flex-direction: column; }
+
+[data-testid="stSidebarUserContent"] { flex: 1; display: flex; flex-direction: column; padding-bottom: 1.5rem; }
+
+[data-testid="stSidebarUserContent"] > div { flex: 1; display: flex; flex-direction: column; }
+
+[data-testid="stSidebarUserContent"] > div > [data-testid="stVerticalBlock"] { flex: 1; gap: .6rem; }
+
+/* Without this, a long conversation list squeezes the other sidebar items instead of scrolling */
+[data-testid="stSidebarUserContent"] > div > [data-testid="stVerticalBlock"] > * { flex-shrink: 0; }
+
+.stApp .st-key-sidebar_footer,
+.stApp [data-testid="stLayoutWrapper"]:has(> .st-key-sidebar_footer) { margin-top: auto; }
+
+.stApp .st-key-sidebar_footer { padding-top: 14px; border-top: 1px solid var(--mg-border); }
+
+.stApp .st-key-new_chat button {
+  min-height: 40px;
+  border-radius: var(--mg-r-md);
+  border-color: var(--mg-border-strong);
+  background: var(--mg-bg-surface);
+  font-weight: 600;
+}
+
+.stApp .st-key-new_chat button:hover { background: var(--mg-bg-hover); border-color: var(--mg-border-strong); color: var(--mg-text); }
+
+.stApp .st-key-thread_search [data-baseweb="input"] {
+  border-radius: var(--mg-r-sm);
+  background: var(--mg-bg-surface);
+}
+
+.stApp .mg-overline {
+  padding: 4px 12px 0;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--mg-text-3);
+}
+
+.stApp p.mg-empty { margin: 0; padding: 4px 12px; font-size: 13px; color: var(--mg-text-3); }
+
+/* Conversation rows: title button + delete button that shows on hover */
+.stApp .st-key-mg-conversations { gap: 2px; }
+
+/* Matches one row each: st-key-mg-thread-ID or st-key-mg-thread-active-ID */
+.stApp [class*="st-key-mg-thread-"] {
+  gap: 0;
+  padding-right: 3px;
+  border-radius: var(--mg-r-sm);
+  transition: background .12s;
+}
+
+.stApp [class*="st-key-mg-thread-"]:hover { background: var(--mg-bg-hover); }
+
+.stApp [class*="st-key-mg-thread-active-"],
+.stApp [class*="st-key-mg-thread-active-"]:hover { background: var(--mg-bg-selected); }
+
+.stApp [class*="st-key-mg-thread-"] .stElementContainer:first-child { flex: 1; min-width: 0; }
+
+.stApp [class*="st-key-mg-thread-"] .stElementContainer:first-child button {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 8px 0 12px;
+  color: var(--mg-text-2);
+}
+
+.stApp [class*="st-key-mg-thread-"] .stElementContainer:first-child button > div,
+.stApp [class*="st-key-mg-thread-"] .stElementContainer:first-child button > div > span {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  justify-content: flex-start;
+}
+
+.stApp [class*="st-key-mg-thread-"] .stElementContainer:first-child button [data-testid="stMarkdownContainer"] {
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+}
+
+.stApp [class*="st-key-mg-thread-"] .stElementContainer:first-child button p {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stApp [class*="st-key-mg-thread-"]:hover .stElementContainer:first-child button,
+.stApp [class*="st-key-mg-thread-active-"] .stElementContainer:first-child button { color: var(--mg-text); }
+
+.stApp [class*="st-key-mg-thread-active-"] .stElementContainer:first-child button p { font-weight: 600; }
+
+.stApp [class*="st-key-delete-"] button {
+  min-height: 30px;
+  width: 30px;
+  padding: 0;
+  border-radius: var(--mg-r-sm);
+  color: var(--mg-text-3);
+  opacity: 0;
+  transition: opacity .12s, color .12s, background .12s;
+}
+
+.stApp [class*="st-key-mg-thread-"]:hover [class*="st-key-delete-"] button,
+.stApp [class*="st-key-mg-thread-"]:focus-within [class*="st-key-delete-"] button,
+.stApp [class*="st-key-mg-thread-active-"] [class*="st-key-delete-"] button { opacity: 1; }
+
+.stApp [class*="st-key-delete-"] button:hover { color: var(--mg-danger); background: var(--mg-danger-subtle); }
+
+.stApp .mg-foot-label { font-size: 13px; font-weight: 500; color: var(--mg-text-2); }
+
+.stApp p.mg-fine { margin: 0; font-size: 12px; line-height: 16px; color: var(--mg-text-3); }
+
+.stApp .mg-theme {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--mg-border);
+  border-radius: 999px;
+  background: var(--mg-bg-muted);
+}
+
+.stApp .mg-theme button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--mg-text-2);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+
+/* st.html strips inline SVG, so the icons are CSS masks painted in the text color */
+.stApp .mg-theme button::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  flex: none;
+  background: currentColor;
+  -webkit-mask: var(--mg-icon) center / contain no-repeat;
+  mask: var(--mg-icon) center / contain no-repeat;
+}
+
+.stApp .mg-theme button[data-mg-theme="System"] {
+  --mg-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='20' height='14' x='2' y='3' rx='2'/%3E%3Cpath d='M8 21h8M12 17v4'/%3E%3C/svg%3E");
+}
+
+.stApp .mg-theme button[data-mg-theme="Light"] {
+  --mg-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Cpath d='M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41'/%3E%3C/svg%3E");
+}
+
+.stApp .mg-theme button[data-mg-theme="Dark"] {
+  --mg-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z'/%3E%3C/svg%3E");
+}
+
+.stApp .mg-theme button:hover { color: var(--mg-text); }
+
+.stApp .mg-theme button[aria-pressed="true"] {
+  background: var(--mg-bg-surface);
+  color: var(--mg-text);
+  box-shadow: var(--mg-shadow-card);
+}
+
+.stApp .mg-theme button[aria-pressed="true"]::before { background: var(--mg-primary); }
+
+.stApp .mg-theme button:focus-visible { outline: 2px solid var(--mg-focus); outline-offset: 1px; }
+
+/* ------------------------------------------------------------------ Buttons & dialog */
+
+/* The dark theme's light violet needs dark text to stay readable (7:1 instead of 2.6:1).
+   Streamlit colors the label and icon on inner elements, so they are set here too. */
+button[data-testid="stBaseButton-primary"],
+button[data-testid="stBaseButton-primary"]:hover,
+button[data-testid="stBaseButton-primary"] * { color: var(--mg-on-brand) !important; }
+
+button[data-testid="stBaseButton-primary"] p { font-weight: 600; }
+
+[data-testid="stDialog"] [role="dialog"] {
+  border: 1px solid var(--mg-border);
+  border-radius: var(--mg-r-lg);
+  box-shadow: var(--mg-shadow-dialog);
+}
+
+[data-testid="stDialog"] [data-testid="stDialogIcon"] { color: var(--mg-danger); }
+
+[data-testid="stDialog"] .st-key-confirm_delete button {
+  border-color: var(--mg-danger);
+  background: var(--mg-danger);
+  color: var(--mg-on-brand);
+}
+
+[data-testid="stDialog"] .st-key-confirm_delete button:hover { filter: brightness(1.06); }
+
+/* ------------------------------------------------------------------ Motion & small screens */
+
+@keyframes mg-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+@keyframes mg-pulse { 0%, 80%, 100% { opacity: .25; transform: scale(.85); } 40% { opacity: 1; transform: none; } }
+
+@keyframes mg-breathe { 50% { transform: scale(1.08); opacity: .8; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .stApp *, .stApp *::before { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+@media (max-width: 640px) {
+  .stApp .mg-welcome { padding-top: 1vh; }
+  .stApp [data-testid="stChatMessageContent"][aria-label="Chat message from user"] { max-width: 90%; }
+  .stApp .mg-docpill { max-width: 140px; }
+}

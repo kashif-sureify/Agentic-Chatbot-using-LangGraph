@@ -1,0 +1,47 @@
+# Magnus AI "Aurora" theme.
+# Streamlit reads this file from the app script's folder, so it applies no matter
+# where `streamlit run` is launched from. The colors match the --mg-* tokens in
+# src/ui/styles.css and the "Aurora Light" / "Aurora Dark" variables in Figma.
+# Defining both [theme.light] and [theme.dark] makes the System / Light / Dark
+# switch available in the sidebar footer and in the app menu.
+
+[theme]
+font = "Plus Jakarta Sans:https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+codeFont = "JetBrains Mono:https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+baseRadius = "0.75rem"
+buttonRadius = "0.75rem"
+showSidebarBorder = true
+
+[theme.light]
+primaryColor = "#5B4BE8"
+backgroundColor = "#FAFAFD"
+secondaryBackgroundColor = "#F1EFF9"
+textColor = "#1A1830"
+linkColor = "#4A3AD6"
+borderColor = "#E7E5F2"
+codeBackgroundColor = "#F1EFF9"
+redColor = "#C8283E"
+orangeColor = "#B45309"
+greenColor = "#137535"
+violetColor = "#5B4BE8"
+
+[theme.light.sidebar]
+backgroundColor = "#F3F2FA"
+secondaryBackgroundColor = "#FFFFFF"
+
+[theme.dark]
+primaryColor = "#9A8CFF"
+backgroundColor = "#0E0D16"
+secondaryBackgroundColor = "#201E36"
+textColor = "#EDEBFA"
+linkColor = "#B0A5FF"
+borderColor = "#2A2842"
+codeBackgroundColor = "#201E36"
+redColor = "#F87171"
+orangeColor = "#FBBF24"
+greenColor = "#4ADE80"
+violetColor = "#9A8CFF"
+
+[theme.dark.sidebar]
+backgroundColor = "#121120"
+secondaryBackgroundColor = "#17162A"
