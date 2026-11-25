@@ -114,6 +114,11 @@ def _select_thread(thread_id):
         else:
             continue
 
+        # An AI message that only carries a tool call has no text and would
+        # otherwise reload as an empty chat bubble
+        if not message.text:
+            continue
+
         history.append({"role": role, "content": message.text})
 
     st.session_state["message_history"] = history

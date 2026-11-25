@@ -2,23 +2,41 @@ import logging
 
 import streamlit as st
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
+from langgraph.types import Command
 
 from agentic_chatbot_backend import chatbot_workflow
+from ui.approval import get_pending_approval
 from ui.layout import LOGO_PATH
 from utils.helper import get_friendly_error_message
 
 logger = logging.getLogger(__name__)
 
 
-def _build_config(thread_id):
+def _build_config(thread_id, run_name):
     return {
         "configurable": {"thread_id": thread_id},
         "metadata": {"thread_id": thread_id},
-        "run_name": "chat_trace",
+        "run_name": run_name,
     }
 
 
 def stream_assistant_response(user_input, thread_id):
+    """Answer a new user message."""
+    return _stream_turn(
+        {"messages": [HumanMessage(content=user_input)]}, thread_id, "chat_trace"
+    )
+
+
+def resume_assistant_response(decision, thread_id):
+    """Hand the user's decision back to the tool that is waiting on `interrupt()`.
+
+    The decision is the whole input: re-sending the original message would start a
+    second turn instead of restarting the paused one.
+    """
+    return _stream_turn(Command(resume=decision), thread_id, "approval_resume_trace")
+
+
+def _stream_turn(graph_input, thread_id, run_name):
     """Stream one assistant reply, showing tool activity as it happens.
 
     Returns the final answer text and whether the turn failed.
@@ -54,8 +72,8 @@ def stream_assistant_response(user_input, thread_id):
 
         try:
             for message_chunk, metadata in chatbot_workflow.stream(
-                {"messages": [HumanMessage(content=user_input)]},
-                config=_build_config(thread_id),
+                graph_input,
+                config=_build_config(thread_id, run_name),
                 stream_mode="messages",
             ):
                 # A tool finished running, so show what it returned
@@ -104,8 +122,15 @@ def stream_assistant_response(user_input, thread_id):
                 response_placeholder.markdown(committed_text + step_text + "▌")
 
             assistant_response = committed_text + step_text
+
+            # A tool that called `interrupt()` ends the turn with no answer to show,
+            # which is a pause rather than the failure the warning below describes
+            awaiting_approval = get_pending_approval(thread_id) is not None
+
             if assistant_response:
                 response_placeholder.markdown(assistant_response)
+            elif awaiting_approval:
+                response_placeholder.empty()
             else:
                 had_error = True
                 response_placeholder.warning(
@@ -114,8 +139,14 @@ def stream_assistant_response(user_input, thread_id):
 
             if status_holder["box"] is not None:
                 tool_list = ", ".join(f"`{name}`" for name in used_tools)
+                if awaiting_approval:
+                    label = "⏸️ Waiting for your approval"
+                else:
+                    label = (
+                        f"✅ Tools Used {tool_list}" if tool_list else "✅ Tools finished"
+                    )
                 status_holder["box"].update(
-                    label=f"✅ Tools Used {tool_list}" if tool_list else "✅ Tools finished",
+                    label=label,
                     state="complete",
                     expanded=False,
                 )
