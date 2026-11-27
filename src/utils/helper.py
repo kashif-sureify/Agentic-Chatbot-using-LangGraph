@@ -77,7 +77,10 @@ def get_friendly_error_message(error: Exception) -> str:
 
 # RAG Document Ingestion
 # One folder per conversation, so a search in this thread cannot see another thread's PDFs
-FAISS_INDEX_PATH = Path(__file__).resolve().parent.parent.parent / "faiss_index"
+# DATA_DIR overrides the project root, e.g. to point at a Docker volume
+FAISS_INDEX_PATH = Path(
+    os.environ.get("DATA_DIR", Path(__file__).resolve().parent.parent.parent)
+) / "faiss_index"
 K_RETRIEVER = 4
 
 # Gemini meters embeddings per minute, so a long PDF is embedded one batch at a time

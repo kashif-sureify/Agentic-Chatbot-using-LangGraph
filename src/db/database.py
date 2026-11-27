@@ -1,11 +1,16 @@
 from datetime import datetime, timezone
+import os
 from pathlib import Path
 import sqlite3
 
 from langgraph.checkpoint.sqlite import SqliteSaver
 
-# Anchored to the project root so the database is the same no matter where the app is launched from
-DB_PATH = Path(__file__).resolve().parent.parent.parent / "chatbot.db"
+# Anchored to the project root so the database is the same no matter where the app is launched from.
+# DATA_DIR overrides it, e.g. to point at a Docker volume.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+DATA_DIR = Path(os.environ.get("DATA_DIR", PROJECT_ROOT))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+DB_PATH = DATA_DIR / "chatbot.db"
 
 conn = sqlite3.connect(database=str(DB_PATH), check_same_thread=False)
 

@@ -1,0 +1,3 @@
+# Local development only (notebooks). Not installed in the Docker image.
+-r requirements.txt
+ipykernel>=7.4.0

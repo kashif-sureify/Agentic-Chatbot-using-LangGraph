@@ -1,0 +1,217 @@
+name: Streamlit AWS CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "README.md"
+
+  # Allows you to run the workflow manually
+  workflow_dispatch:
+
+# Queue deployments instead of cancelling one halfway through
+# (a cancelled deploy can leave the old container removed and no new one running)
+concurrency:
+  group: agentic-chatbot-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CONTAINER_NAME: stapp
+  DATA_VOLUME: agentic-chatbot-data
+
+jobs:
+  # ============================================================
+  # 1. CONTINUOUS INTEGRATION
+  # ============================================================
+  integration:
+    name: Continuous Integration
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check Python syntax
+        run: python -m compileall -q src
+
+      - name: Run unit tests
+        run: echo "No unit tests yet"
+
+  # ============================================================
+  # 2. BUILD AND PUSH IMAGE TO DOCKER HUB
+  # ============================================================
+  push_to_registry:
+    name: Build and Push Docker Image
+    needs: integration
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate Docker image settings
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          IMAGE_NAME: ${{ secrets.IMAGE_NAME }}
+        run: |
+          missing=0
+          for name in DOCKER_USERNAME DOCKER_PASSWORD IMAGE_NAME; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name secret is missing."
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || exit 1
+          echo "Docker image settings are configured."
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/${{ secrets.IMAGE_NAME }}:main
+            ${{ secrets.DOCKER_USERNAME }}/${{ secrets.IMAGE_NAME }}:sha-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ============================================================
+  # 3. DEPLOY TO AWS EC2 SELF-HOSTED RUNNER
+  # ============================================================
+  continuous_deployment:
+    name: Deploy to AWS EC2
+    needs: push_to_registry
+    runs-on: self-hosted
+
+    env:
+      IMAGE_PATH: ${{ secrets.DOCKER_USERNAME }}/${{ secrets.IMAGE_NAME }}
+
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Validate application secrets
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+          LANGSMITH_TRACING: ${{ secrets.LANGSMITH_TRACING }}
+          LANGSMITH_ENDPOINT: ${{ secrets.LANGSMITH_ENDPOINT }}
+          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+          LANGSMITH_PROJECT: ${{ secrets.LANGSMITH_PROJECT }}
+        run: |
+          missing=0
+          for name in GOOGLE_API_KEY TAVILY_API_KEY OPENWEATHER_API_KEY \
+                      LANGSMITH_TRACING LANGSMITH_ENDPOINT LANGSMITH_API_KEY LANGSMITH_PROJECT; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name secret is missing."
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || exit 1
+          echo "All required application secrets are configured."
+
+      - name: Pull latest Docker image
+        run: docker pull "${IMAGE_PATH}:main"
+
+      - name: Stop and remove existing container
+        run: docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+
+      - name: Run Streamlit container
+        env:
+          # src/models/models.py reads GEMINI_API_KEY; langchain-google-genai reads GOOGLE_API_KEY
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+
+          # Optional: Groq fallback model and extra tools
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          STOCK_API_KEY: ${{ secrets.STOCK_API_KEY }}
+          CURRENT_LOCATION_URL: ${{ secrets.CURRENT_LOCATION_URL }}
+
+          LANGSMITH_TRACING: ${{ secrets.LANGSMITH_TRACING }}
+          LANGSMITH_ENDPOINT: ${{ secrets.LANGSMITH_ENDPOINT }}
+          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+          LANGSMITH_PROJECT: ${{ secrets.LANGSMITH_PROJECT }}
+        run: |
+          # The named volume keeps chat history (SQLite) and FAISS indexes across deploys
+          docker run -d \
+            --restart unless-stopped \
+            --name "$CONTAINER_NAME" \
+            -p 8501:8501 \
+            -v "${DATA_VOLUME}:/src/app/data" \
+            -e GOOGLE_API_KEY \
+            -e GEMINI_API_KEY \
+            -e TAVILY_API_KEY \
+            -e OPENWEATHER_API_KEY \
+            -e GROQ_API_KEY \
+            -e STOCK_API_KEY \
+            -e CURRENT_LOCATION_URL \
+            -e LANGSMITH_TRACING \
+            -e LANGSMITH_ENDPOINT \
+            -e LANGSMITH_API_KEY \
+            -e LANGSMITH_PROJECT \
+            "${IMAGE_PATH}:main"
+
+      - name: Verify container is running
+        run: |
+          sleep 10
+
+          if [ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null)" != "true" ]; then
+            echo "::error::The Streamlit container failed to start."
+            docker logs "$CONTAINER_NAME" || true
+            exit 1
+          fi
+
+          echo "The Streamlit container is running."
+          docker ps --filter "name=^${CONTAINER_NAME}$"
+
+      - name: Verify Streamlit health endpoint
+        run: |
+          for attempt in $(seq 1 12); do
+            if docker exec "$CONTAINER_NAME" python -c \
+              "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health', timeout=5)" \
+              >/dev/null 2>&1; then
+              echo "Streamlit application is healthy."
+              exit 0
+            fi
+
+            echo "Waiting for Streamlit to become ready (attempt $attempt/12)..."
+            sleep 5
+          done
+
+          echo "::error::Streamlit did not become healthy."
+          docker logs --tail 100 "$CONTAINER_NAME" || true
+          exit 1
+
+      - name: Show recent application logs
+        if: always()
+        run: docker logs --tail 50 "$CONTAINER_NAME" 2>/dev/null || true
+
+      - name: Remove unused Docker images
+        if: always()
+        run: docker image prune -f

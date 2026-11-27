@@ -1,0 +1,28 @@
+# Virtual environments
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Secrets — pass at runtime with --env-file .env instead
+.env
+.env.*
+
+# Git and Python caches
+.git
+.gitignore
+__pycache__/
+*.py[cod]
+
+# Local runtime data (mount as a volume if you want persistence)
+chatbot.db
+chatbot.db-shm
+chatbot.db-wal
+faiss_index/
+data/
+
+# Large / dev-only files
+*.pdf
+notebook/
